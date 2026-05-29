@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ESP32-CAM · ИИ Монитор</title>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"/>
+    <style>
+        :root{
+            --bg:#06080c;--panel:#0b0e14;--border:rgba(0,200,150,.12);
+            --accent:#00c896;--blue:#00aaff;--red:#ff2244;--amber:#ffaa00;
+            --text:#c8d8e0;--dim:#3a5060;
+            --mono:'Share Tech Mono',monospace;--sans:'Rajdhani',sans-serif;
+        }
+        *{box-sizing:border-box;margin:0;padding:0}
+        html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--sans)}
+        body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,200,150,.018) 2px,rgba(0,200,150,.018) 4px)}
+
+        @keyframes scanH{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+        @keyframes scanV{from{top:0}to{top:100%}}
+        @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+
+        /* TOP BAR */
+        .topbar{display:flex;align-items:center;gap:10px;padding:6px 14px;border-bottom:1px solid var(--border);background:var(--panel);position:relative;overflow:hidden;height:38px;flex-shrink:0}
+        .topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scanH 4s linear infinite}
+        .logo{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:3px}
+        .logo-sub{font-size:9px;color:var(--dim);letter-spacing:2px}
+        .topbar-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+        .ip-input{background:var(--bg);border:1px solid var(--border);color:var(--accent);font-family:var(--mono);font-size:12px;padding:4px 8px;border-radius:3px;outline:none;width:130px;transition:border-color .2s}
+        .ip-input:focus{border-color:var(--accent)}
+        .tbtn{border-radius:3px;font-family:var(--mono);font-size:10px;padding:4px 10px;cursor:pointer;letter-spacing:1px;transition:all .2s;border:1px solid}
+        .tbtn-green{background:rgba(0,200,150,.1);border-color:var(--accent);color:var(--accent)}
+        .tbtn-green:hover{background:rgba(0,200,150,.22)}
+        .tbtn-amber{background:rgba(255,170,0,.08);border-color:var(--amber);color:var(--amber)}
+        .tbtn-amber:hover{background:rgba(255,170,0,.2)}
+        .pill{display:flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-family:var(--mono);font-size:10px;letter-spacing:1px}
+        .pill.on{background:rgba(0,200,150,.1);border:1px solid var(--accent);color:var(--accent)}
+        .pill.off{background:rgba(255,34,68,.08);border:1px solid var(--red);color:var(--red)}
+        .pdot{width:5px;height:5px;border-radius:50%;background:currentColor;animation:blink 1s infinite}
+
+        /* LAYOUT — 2 columns */
+        .layout{display:grid;grid-template-columns:1.2fr 1fr;height:calc(100vh - 38px);overflow:hidden}
+
+        /* COL A — Camera + chart */
+        .col-a{display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden}
+        .cam-wrap{position:relative;flex:1;background:#000;overflow:hidden}
+        .cam-wrap img{width:100%;height:100%;object-fit:cover;display:block;opacity:.92}
+        .cam-wrap::before{content:'';position:absolute;top:10px;left:10px;width:20px;height:20px;border-top:2px solid var(--accent);border-left:2px solid var(--accent);opacity:.6}
+        .cam-wrap::after{content:'';position:absolute;bottom:10px;right:10px;width:20px;height:20px;border-bottom:2px solid var(--accent);border-right:2px solid var(--accent);opacity:.6}
+        .scan-v{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.2;animation:scanV 5s linear infinite}
+        .cam-label{position:absolute;top:10px;left:34px;font-family:var(--mono);font-size:9px;color:var(--accent);letter-spacing:2px}
+        .cam-rec{position:absolute;top:8px;right:10px;display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:9px;color:var(--red)}
+        .recdot{width:5px;height:5px;border-radius:50%;background:var(--red);animation:blink .8s infinite}
+        .ai-badge{position:absolute;bottom:10px;left:10px;font-family:var(--mono);font-size:11px;font-weight:bold;padding:4px 10px;border-radius:3px;border:1px solid;transition:all .3s;display:none;letter-spacing:1px}
+        .cam-time{position:absolute;bottom:10px;right:10px;font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.3)}
+        .no-signal{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--dim);font-family:var(--mono);font-size:11px;letter-spacing:2px}
+
+        .chart-strip{height:120px;flex-shrink:0;border-top:1px solid var(--border);background:var(--panel);display:flex;flex-direction:column}
+        .strip-hdr{display:flex;align-items:center;justify-content:space-between;padding:5px 12px;border-bottom:1px solid var(--border)}
+        .strip-title{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:2px}
+        .strip-live{font-family:var(--mono);font-size:9px;padding:1px 7px;border-radius:2px;background:rgba(0,200,150,.1);border:1px solid var(--accent);color:var(--accent)}
+        .chart-canvas-wrap{flex:1;padding:6px 10px}
+        .chart-canvas-wrap canvas{width:100%!important;height:100%!important}
+
+        /* COL B — AI results + alerts + log */
+        .col-b{display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
+        .section{border-bottom:1px solid var(--border);flex-shrink:0}
+        .sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:rgba(0,200,150,.025)}
+        .sec-title{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:2px}
+        .sec-badge{font-family:var(--mono);font-size:9px;padding:1px 7px;border-radius:2px}
+
+        /* Bars */
+        .bars-body{padding:7px 10px;display:flex;flex-direction:column;gap:6px}
+        .bar-row{display:flex;align-items:center;gap:8px}
+        .bar-name{font-size:13px;font-weight:600;min-width:80px;letter-spacing:.5px}
+        .bar-track{flex:1;height:5px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden}
+        .bar-fill{height:100%;border-radius:3px;width:0%;transition:width .6s cubic-bezier(.4,0,.2,1)}
+        .bar-pct{font-family:var(--mono);font-size:11px;font-weight:bold;min-width:36px;text-align:right}
+        .c-clear{color:var(--accent)} .f-clear{background:var(--accent)}
+        .c-humans{color:var(--blue)}  .f-humans{background:var(--blue)}
+        .c-obs{color:var(--red)}      .f-obs{background:var(--red)}
+
+        /* Status */
+        .status-big{margin:5px 10px;padding:7px;border-radius:4px;text-align:center;font-size:20px;font-weight:700;letter-spacing:3px;transition:all .4s;border:1px solid;color:var(--dim);background:rgba(74,96,112,.08);border-color:rgba(74,96,112,.2)}
+
+        /* Telemetry */
+        .tele-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:0 10px 7px}
+        .tele-card{background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.05);border-radius:3px;padding:6px;text-align:center}
+        .tele-val{font-family:var(--mono);font-size:18px;font-weight:bold;color:var(--accent);line-height:1}
+        .tele-lbl{font-size:9px;color:var(--dim);letter-spacing:1.5px;margin-top:2px}
+        .countdown{font-family:var(--mono);font-size:9px;color:var(--dim);text-align:right;padding:0 12px 8px;letter-spacing:1px}
+
+        /* Alert settings */
+        .alerts-body{padding:8px 12px;display:flex;flex-direction:column;gap:6px}
+        .alert-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+        .alert-toggle{display:flex;align-items:center;gap:5px;cursor:pointer;font-size:11px;font-weight:600;letter-spacing:.5px}
+        .alert-toggle input{accent-color:var(--accent);cursor:pointer}
+        .alert-threshold{display:flex;align-items:center;gap:6px}
+        .alert-threshold input[type=range]{width:80px;accent-color:var(--accent)}
+        .thr-val{font-family:var(--mono);font-size:10px;color:var(--accent);min-width:28px;text-align:right}
+
+        /* Log */
+        .log-body{flex:1;overflow:hidden;padding:6px 12px;display:flex;flex-direction:column;justify-content:flex-end;gap:2px}
+        .log-line{font-family:var(--mono);font-size:9px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+        /* Phone hint */
+        .phone-hint{
+            padding:10px 12px;border-top:1px solid var(--border);
+            font-family:var(--mono);font-size:9px;color:var(--dim);
+            text-align:center;line-height:1.8;letter-spacing:.5px;
+            background:rgba(0,200,150,.02);flex-shrink:0;
+        }
+        .phone-hint span{color:var(--accent)}
+    </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+    <div>
+        <div class="logo">ESP32-CAM · ИИ МОНИТОР</div>
+        <div class="logo-sub">СИСТЕМА КОМПЬЮТЕРНОГО ЗРЕНИЯ</div>
+    </div>
+    <div class="topbar-right">
+        <span style="font-family:var(--mono);font-size:9px;color:var(--dim)">IP</span>
+        <input class="ip-input" id="ip-input" placeholder="192.168.x.x"/>
+        <button class="tbtn tbtn-green" id="connect-btn">ПОДКЛЮЧИТЬ</button>
+        <button class="tbtn tbtn-amber" id="capture-btn">📷 СНИМОК</button>
+        <button class="tbtn" id="bt-connect-btn" style="background:rgba(0,170,255,.08);border-color:var(--blue);color:var(--blue)">📡 ПОДКЛ. BT</button>
+        <div class="pill off" id="ai-pill"><div class="pdot"></div><span id="ai-pill-txt">AI: OFFLINE</span></div>
+        <div class="pill off" id="bt-pill"><div class="pdot"></div><span id="bt-pill-txt">BT: OFFLINE</span></div>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--amber)" id="ping-badge">PING: --</span>
+    </div>
+</div>
+
+<!-- LAYOUT -->
+<div class="layout">
+
+    <!-- COL A: Camera + chart -->
+    <div class="col-a">
+        <div class="cam-wrap">
+            <img id="cam-img" src="" style="display:none" alt="cam"/>
+            <div class="no-signal" id="no-signal">
+                <svg width="28" height="28" fill="none" stroke="#3a5060" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
+                </svg>
+                НЕТ СИГНАЛА
+            </div>
+            <div class="scan-v"></div>
+            <div class="cam-label">CAM_01</div>
+            <div class="cam-rec"><div class="recdot"></div>LIVE</div>
+            <div class="ai-badge" id="ai-badge"></div>
+            <div class="cam-time" id="cam-time">--:--:--</div>
+        </div>
+
+        <div class="chart-strip">
+            <div class="strip-hdr">
+                <span class="strip-title">ГРАФИК АНАЛИЗА В РЕАЛЬНОМ ВРЕМЕНИ</span>
+                <span class="strip-live">LIVE</span>
+            </div>
+            <div class="chart-canvas-wrap">
+                <canvas id="realtime-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- COL B: AI + alerts + log -->
+    <div class="col-b">
+
+        <!-- AI bars -->
+        <div class="section">
+            <div class="sec-hdr">
+                <span class="sec-title">РЕЗУЛЬТАТ АНАЛИЗА</span>
+                <span class="sec-badge" id="ai-ms-badge" style="background:rgba(0,170,255,.1);border:1px solid #0af;color:#0af">-- мс</span>
+            </div>
+            <div class="bars-body">
+                <div class="bar-row">
+                    <span class="bar-name c-clear">Свободно</span>
+                    <div class="bar-track"><div class="bar-fill f-clear" id="bar-clear"></div></div>
+                    <span class="bar-pct c-clear" id="val-clear">0%</span>
+                </div>
+                <div class="bar-row">
+                    <span class="bar-name c-humans">Человек</span>
+                    <div class="bar-track"><div class="bar-fill f-humans" id="bar-humans"></div></div>
+                    <span class="bar-pct c-humans" id="val-humans">0%</span>
+                </div>
+                <div class="bar-row">
+                    <span class="bar-name c-obs">Препятствие</span>
+                    <div class="bar-track"><div class="bar-fill f-obs" id="bar-obstacle"></div></div>
+                    <span class="bar-pct c-obs" id="val-obstacle">0%</span>
+                </div>
+            </div>
+            <div class="status-big" id="status-big">ОЖИДАНИЕ</div>
+            <div class="tele-row">
+                <div class="tele-card"><div class="tele-val" id="tele-ping">--</div><div class="tele-lbl">ПИНГ мс</div></div>
+                <div class="tele-card"><div class="tele-val" id="tele-ai">--</div><div class="tele-lbl">АНАЛИЗ мс</div></div>
+            </div>
+            <div class="countdown" id="countdown">Следующий анализ: --</div>
+        </div>
+
+        <!-- Alert settings -->
+        <div class="section">
+            <div class="sec-hdr"><span class="sec-title">ПОРОГ ОПОВЕЩЕНИЙ</span></div>
+            <div class="alerts-body" id="alert-settings"></div>
+        </div>
+
+        <!-- HC-SR04 sensor -->
+        <div class="section">
+            <div class="sec-hdr">
+                <span class="sec-title">HC-SR04 · ДИСТАНЦИЯ</span>
+                <span class="sec-badge" id="sensor-badge" style="background:rgba(0,200,150,.1);border:1px solid #00c896;color:#00c896">-- см</span>
+            </div>
+            <div style="padding:10px 12px;text-align:center">
+                <div id="sensor-dist" style="font-family:var(--mono);font-size:52px;font-weight:700;color:var(--dim);line-height:1">---</div>
+                <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px">сантиметр</div>
+                <div id="sensor-status" style="margin:6px auto 0;font-size:11px;font-weight:700;letter-spacing:2px;padding:4px 12px;border-radius:3px;border:1px solid;display:table;color:var(--dim);background:rgba(74,96,112,.05);border-color:rgba(74,96,112,.2)">НЕТ ДАННЫХ</div>
+            </div>
+            <div style="padding:0 12px 6px">
+                <div style="height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden"><div id="sensor-gauge" style="height:100%;border-radius:3px;width:0%;transition:width .4s,background .3s;background:var(--accent)"></div></div>
+                <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;color:var(--dim);margin-top:3px"><span>0</span><span style="color:var(--red)">25</span><span style="color:var(--amber)">40</span><span>100+</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;padding:0 12px 8px">
+                <div class="tele-card"><div class="tele-val" id="stat-min">--</div><div class="tele-lbl">МИН</div></div>
+                <div class="tele-card"><div class="tele-val" id="stat-avg">--</div><div class="tele-lbl">СРД</div></div>
+                <div class="tele-card"><div class="tele-val" id="stat-max">--</div><div class="tele-lbl">МАКС</div></div>
+            </div>
+            <div style="padding:0 12px 8px">
+                <div style="font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:2px;margin-bottom:4px">РЕЖИМ МАШИНЫ</div>
+                <div id="car-mode-badge" style="font-size:13px;font-weight:700;letter-spacing:2px;padding:6px 12px;border-radius:4px;border:1px solid;display:inline-block;color:var(--blue);background:rgba(0,170,255,.1);border-color:rgba(0,170,255,.3)">РУЧНОЙ (M)</div>
+            </div>
+            <div style="padding:0 12px 8px;height:70px"><canvas id="sensor-chart" style="width:100%;height:100%"></canvas></div>
+        </div>
+
+        <!-- Log -->
+        <div class="log-body" id="log-body">
+            <div class="log-line" style="color:var(--accent)">► Система инициализирована...</div>
+        </div>
+
+        <!-- Phone control hint -->
+        <div class="phone-hint">
+            📱 Управление через телефон<br>
+            <span>Serial Bluetooth Terminal</span> → HC-05<br>
+            F=вперёд · B=назад · L=влево · R=вправо<br>
+            S=стоп · A=авто · M=ручной
+        </div>
+
+    </div>
+</div>
+
+<script type="module" src="/frontend/srcntend/src/main.ts"></script>
+</body>
+</html>
