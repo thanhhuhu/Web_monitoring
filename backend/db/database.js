@@ -1,6 +1,6 @@
 const mongoose = require('mongoose')
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://nguyendinhthanh2002_db_user:lechau0612@cluster0.xttrlie.mongodb.net/esp32_monitor?appName=Cluster0'
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://nguyendinhthanh2002_db_user:lechau0612@cluster0.reuoo1y.mongodb.net/?appName=Cluster0'
 
 // ── Schemas ───────────────────────────────────
 
