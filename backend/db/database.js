@@ -1,96 +1,53 @@
-// ═══════════════════════════════════════════════
-// db/database.js — sql.js (không cần compile)
-// ═══════════════════════════════════════════════
+const mongoose = require('mongoose')
 
-const path = require('path')
-const fs   = require('fs')
-const initSqlJs = require('sql.js')
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://nguyendinhthanh2002_db_user:lechau0612@cluster0.xttrlie.mongodb.net/esp32_monitor?appName=Cluster0'
 
-const DB_PATH = path.join(__dirname, 'data.db')
+// ── Schemas ───────────────────────────────────
 
-let db = null
+const SessionSchema = new mongoose.Schema({
+    start_time: { type: Date, default: Date.now },
+    end_time:   { type: Date, default: null },
+    esp32_ip:   { type: String, default: null },
+    notes:      { type: String, default: null },
+}, { collection: 'sessions' })
 
-const SCHEMA = `
-  CREATE TABLE IF NOT EXISTS sessions (
-    id         INTEGER PRIMARY KEY AUTOINCREMENT,
-    start_time TEXT    NOT NULL DEFAULT (datetime('now')),
-    end_time   TEXT,
-    esp32_ip   TEXT,
-    notes      TEXT
-  );
+const InferenceSchema = new mongoose.Schema({
+    timestamp:    { type: Date, default: Date.now },
+    session_id:   { type: mongoose.Schema.Types.ObjectId, ref: 'Session', default: null },
+    clear_pct:    { type: Number, required: true },
+    humans_pct:   { type: Number, required: true },
+    obstacle_pct: { type: Number, required: true },
+    label:        { type: String, required: true },
+    confidence:   { type: Number, required: true },
+    inference_ms: { type: Number, default: null },
+}, { collection: 'inference_log' })
 
-  CREATE TABLE IF NOT EXISTS inference_log (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp    TEXT NOT NULL DEFAULT (datetime('now')),
-    session_id   INTEGER,
-    clear_pct    REAL NOT NULL,
-    humans_pct   REAL NOT NULL,
-    obstacle_pct REAL NOT NULL,
-    label        TEXT NOT NULL,
-    confidence   REAL NOT NULL,
-    inference_ms INTEGER
-  );
+const SensorSchema = new mongoose.Schema({
+    timestamp:   { type: Date, default: Date.now },
+    session_id:  { type: mongoose.Schema.Types.ObjectId, ref: 'Session', default: null },
+    distance_cm: { type: Number, required: true },
+    zone:        { type: String, enum: ['ok','warn','danger','out'], required: true },
+    mode:        { type: String, enum: ['M','A'], default: 'M' },
+}, { collection: 'sensor_log' })
 
-  CREATE TABLE IF NOT EXISTS sensor_log (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp   TEXT NOT NULL DEFAULT (datetime('now')),
-    session_id  INTEGER,
-    distance_cm REAL NOT NULL,
-    zone        TEXT NOT NULL,
-    mode        TEXT NOT NULL DEFAULT 'M'
-  );
+const AlertSchema = new mongoose.Schema({
+    timestamp:     { type: Date, default: Date.now },
+    session_id:    { type: mongoose.Schema.Types.ObjectId, ref: 'Session', default: null },
+    label:         { type: String, required: true },
+    value_pct:     { type: Number, required: true },
+    threshold_pct: { type: Number, required: true },
+}, { collection: 'alert_log' })
 
-  CREATE TABLE IF NOT EXISTS alert_log (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp     TEXT NOT NULL DEFAULT (datetime('now')),
-    session_id    INTEGER,
-    label         TEXT NOT NULL,
-    value_pct     REAL NOT NULL,
-    threshold_pct REAL NOT NULL
-  );
-`
+// ── Models ────────────────────────────────────
+const Session   = mongoose.model('Session',   SessionSchema)
+const Inference = mongoose.model('Inference', InferenceSchema)
+const Sensor    = mongoose.model('Sensor',    SensorSchema)
+const Alert     = mongoose.model('Alert',     AlertSchema)
 
-// Lưu DB ra file mỗi khi có thay đổi
-function persist() {
-    const data = db.export()
-    fs.writeFileSync(DB_PATH, Buffer.from(data))
+// ── Connect ───────────────────────────────────
+async function connect() {
+    await mongoose.connect(MONGO_URI)
+    console.log('✅ MongoDB connected:', MONGO_URI)
 }
 
-// Wrap để auto-persist sau mỗi write
-function run(sql, params = []) {
-    db.run(sql, params)
-    persist()
-    // Lấy lastInsertRowid
-    const row = db.exec('SELECT last_insert_rowid() as id')
-    return { lastInsertRowid: row[0]?.values[0][0] ?? null }
-}
-
-function get(sql, params = []) {
-    const result = db.exec(sql, params)
-    if (!result.length) return null
-    const { columns, values } = result[0]
-    if (!values.length) return null
-    return Object.fromEntries(columns.map((c, i) => [c, values[0][i]]))
-}
-
-function all(sql, params = []) {
-    const result = db.exec(sql, params)
-    if (!result.length) return []
-    const { columns, values } = result[0]
-    return values.map(row => Object.fromEntries(columns.map((c, i) => [c, row[i]])))
-}
-
-async function init() {
-    const SQL = await initSqlJs()
-    if (fs.existsSync(DB_PATH)) {
-        const fileBuffer = fs.readFileSync(DB_PATH)
-        db = new SQL.Database(fileBuffer)
-    } else {
-        db = new SQL.Database()
-    }
-    db.run(SCHEMA)
-    persist()
-    console.log('✅ Database ready:', DB_PATH)
-}
-
-module.exports = { init, run, get, all, persist }
+module.exports = { connect, Session, Inference, Sensor, Alert }

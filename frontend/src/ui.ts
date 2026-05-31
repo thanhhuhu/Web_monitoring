@@ -2,7 +2,7 @@
 // ui.ts — DOM update functions
 // ═══════════════════════════════════════════════
 
-import type { AIResult, AppConfig, LabelKey } from './types.ts'
+import type { AIResult, AppConfig, LabelKey } from './types'
 
 const STATUS_STYLES: Record<LabelKey, { color: string; bg: string; border: string }> = {
     clear:    { color: '#00c896', bg: 'rgba(0,200,150,.1)',  border: 'rgba(0,200,150,.3)'  },
@@ -11,7 +11,7 @@ const STATUS_STYLES: Record<LabelKey, { color: string; bg: string; border: strin
 }
 
 const LABEL_RU: Record<LabelKey, string> = {
-    clear: 'СВОБОДНО', humans: 'ЧЕЛОВЕК', obstacle: 'ПРЕПЯТСТВИЕ',
+    clear: 'CLEAR', humans: 'HUMANS', obstacle: 'OBSTACLE',
 }
 
 function el<T extends HTMLElement>(id: string): T | null {
@@ -70,7 +70,7 @@ export function updateTelemetry(ping: number, ms: number): void {
 
 export function updateCountdown(remain: number): void {
     const e = el('countdown')
-    if (e) e.textContent = 'Следующий анализ: ' + (remain / 1000).toFixed(1) + ' с'
+    if (e) e.textContent = 'Next analysis: ' + (remain / 1000).toFixed(1) + 's'
 }
 
 export function setOnline(ok: boolean): void {
