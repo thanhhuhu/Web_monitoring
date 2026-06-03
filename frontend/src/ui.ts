@@ -11,7 +11,7 @@ const STATUS_STYLES: Record<LabelKey, { color: string; bg: string; border: strin
 }
 
 const LABEL_RU: Record<LabelKey, string> = {
-    clear: 'CLEAR', humans: 'HUMANS', obstacle: 'OBSTACLE',
+    clear: 'СВОБОДНО', humans: 'ЧЕЛОВЕК', obstacle: 'ПРЕПЯТСТВИЕ',
 }
 
 function el<T extends HTMLElement>(id: string): T | null {
@@ -70,14 +70,14 @@ export function updateTelemetry(ping: number, ms: number): void {
 
 export function updateCountdown(remain: number): void {
     const e = el('countdown')
-    if (e) e.textContent = 'Next analysis: ' + (remain / 1000).toFixed(1) + 's'
+    if (e) e.textContent = 'Следующий анализ: ' + (remain / 1000).toFixed(1) + ' с'
 }
 
 export function setOnline(ok: boolean): void {
     const pill = el('ai-pill')
     const txt  = el('ai-pill-txt')
     if (pill) pill.className = 'pill ' + (ok ? 'on' : 'off')
-    if (txt)  txt.textContent = ok ? 'AI: ONLINE' : 'AI: OFFLINE'
+    if (txt)  txt.textContent = ok ? 'AI: ОНЛАЙН' : 'AI: OFFLINE'
 }
 
 export function setCamOnline(ok: boolean): void {

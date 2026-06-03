@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>ESP32-CAM · AI Monitor</title>
+    <title>ESP32-CAM · ИИ Монитор</title>
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"/>
     <style>
         :root{
@@ -19,7 +19,6 @@
         @keyframes scanV{from{top:0}to{top:100%}}
         @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 
-        /* TOP BAR */
         .topbar{display:flex;align-items:center;gap:10px;padding:6px 14px;border-bottom:1px solid var(--border);background:var(--panel);position:relative;overflow:hidden;height:38px;flex-shrink:0}
         .topbar::after{content:'';position:absolute;bottom:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scanH 4s linear infinite}
         .logo{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:3px}
@@ -37,10 +36,8 @@
         .pill.off{background:rgba(255,34,68,.08);border:1px solid var(--red);color:var(--red)}
         .pdot{width:5px;height:5px;border-radius:50%;background:currentColor;animation:blink 1s infinite}
 
-        /* LAYOUT */
         .layout{display:grid;grid-template-columns:1.2fr 1fr;height:calc(100vh - 38px);overflow:hidden}
 
-        /* COL A */
         .col-a{display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden;height:100%}
         .cam-wrap{position:relative;flex:0 0 calc(100% - 110px);min-height:0;background:#000;overflow:hidden}
         .cam-wrap img{width:100%;height:100%;object-fit:cover;display:block;opacity:.92}
@@ -60,7 +57,6 @@
         .chart-canvas-wrap{flex:1;padding:6px 10px}
         .chart-canvas-wrap canvas{width:100%!important;height:100%!important}
 
-        /* COL B */
         .col-b{display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
         .section{border-bottom:1px solid var(--border);flex-shrink:0}
         .sec-hdr{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:rgba(0,200,150,.025)}
@@ -98,22 +94,22 @@
 
 <div class="topbar">
     <div>
-        <div class="logo">ESP32-CAM · AI MONITOR</div>
-        <div class="logo-sub">REAL-TIME VISION SYSTEM</div>
+        <div class="logo">ESP32-CAM · ИИ МОНИТОР</div>
+        <div class="logo-sub">СИСТЕМА КОМПЬЮТЕРНОГО ЗРЕНИЯ</div>
     </div>
     <div class="topbar-right">
         <span style="font-family:var(--mono);font-size:9px;color:var(--dim)">IP</span>
         <input class="ip-input" id="ip-input" placeholder="192.168.x.x"/>
-        <button class="tbtn tbtn-green" id="connect-btn">CONNECT</button>
-        <button class="tbtn tbtn-amber" id="capture-btn">📷 SNAPSHOT</button>
+        <button class="tbtn tbtn-green" id="connect-btn">ПОДКЛЮЧИТЬ</button>
+        <button class="tbtn tbtn-amber" id="capture-btn">📷 СНИМОК</button>
         <div class="pill off" id="ai-pill"><div class="pdot"></div><span id="ai-pill-txt">AI: OFFLINE</span></div>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--amber)" id="ping-badge">PING: --</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--amber)" id="ping-badge">ПИНГ: --</span>
     </div>
 </div>
 
 <div class="layout">
 
-    <!-- Camera + Chart -->
+    <!-- Камера + График -->
     <div class="col-a">
         <div class="cam-wrap">
             <img id="cam-img" src="" style="display:none" alt="cam"/>
@@ -121,17 +117,17 @@
                 <svg width="28" height="28" fill="none" stroke="#3a5060" stroke-width="1.5" viewBox="0 0 24 24">
                     <path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/>
                 </svg>
-                NO SIGNAL
+                НЕТ СИГНАЛА
             </div>
             <div class="scan-v"></div>
-            <div class="cam-label">CAM_01</div>
-            <div class="cam-rec"><div class="recdot"></div>LIVE</div>
+            <div class="cam-label">КАМ_01</div>
+            <div class="cam-rec"><div class="recdot"></div>ТРАНСЛЯЦИЯ</div>
             <div class="ai-badge" id="ai-badge"></div>
             <div class="cam-time" id="cam-time">--:--:--</div>
         </div>
         <div class="chart-strip">
             <div class="strip-hdr">
-                <span class="strip-title">REAL-TIME ANALYSIS CHART</span>
+                <span class="strip-title">ГРАФИК АНАЛИЗА В РЕАЛЬНОМ ВРЕМЕНИ</span>
                 <span class="strip-live">LIVE</span>
             </div>
             <div class="chart-canvas-wrap">
@@ -140,52 +136,77 @@
         </div>
     </div>
 
-    <!-- AI Results -->
+    <!-- Результаты ИИ -->
     <div class="col-b">
 
         <div class="section">
             <div class="sec-hdr">
-                <span class="sec-title">AI RESULTS</span>
-                <span class="sec-badge" id="ai-ms-badge" style="background:rgba(0,170,255,.1);border:1px solid #0af;color:#0af">-- ms</span>
+                <span class="sec-title">РЕЗУЛЬТАТ АНАЛИЗА</span>
+                <span class="sec-badge" id="ai-ms-badge" style="background:rgba(0,170,255,.1);border:1px solid #0af;color:#0af">-- мс</span>
             </div>
             <div class="bars-body">
                 <div class="bar-row">
-                    <span class="bar-name c-clear">Clear</span>
+                    <span class="bar-name c-clear">Свободно</span>
                     <div class="bar-track"><div class="bar-fill f-clear" id="bar-clear"></div></div>
                     <span class="bar-pct c-clear" id="val-clear">0%</span>
                 </div>
                 <div class="bar-row">
-                    <span class="bar-name c-humans">Humans</span>
+                    <span class="bar-name c-humans">Человек</span>
                     <div class="bar-track"><div class="bar-fill f-humans" id="bar-humans"></div></div>
                     <span class="bar-pct c-humans" id="val-humans">0%</span>
                 </div>
                 <div class="bar-row">
-                    <span class="bar-name c-obs">Obstacle</span>
+                    <span class="bar-name c-obs">Препятствие</span>
                     <div class="bar-track"><div class="bar-fill f-obs" id="bar-obstacle"></div></div>
                     <span class="bar-pct c-obs" id="val-obstacle">0%</span>
                 </div>
             </div>
-            <div class="status-big" id="status-big">WAITING</div>
+            <div class="status-big" id="status-big">ОЖИДАНИЕ</div>
             <div class="tele-row">
-                <div class="tele-card"><div class="tele-val" id="tele-ping">--</div><div class="tele-lbl">PING ms</div></div>
-                <div class="tele-card"><div class="tele-val" id="tele-ai">--</div><div class="tele-lbl">AI ms</div></div>
+                <div class="tele-card"><div class="tele-val" id="tele-ping">--</div><div class="tele-lbl">ПИНГ мс</div></div>
+                <div class="tele-card"><div class="tele-val" id="tele-ai">--</div><div class="tele-lbl">АНАЛИЗ мс</div></div>
             </div>
-            <div class="countdown" id="countdown">Next analysis: --</div>
+            <div class="countdown" id="countdown">Следующий анализ: --</div>
         </div>
 
         <div class="section">
-            <div class="sec-hdr"><span class="sec-title">ALERT THRESHOLDS</span></div>
+            <div class="sec-hdr"><span class="sec-title">ПОРОГ ОПОВЕЩЕНИЙ</span></div>
             <div class="alerts-body" id="alert-settings"></div>
         </div>
 
         <div class="log-body" id="log-body">
-            <div class="log-line" style="color:var(--accent)">► System ready</div>
+            <div class="log-line" style="color:var(--accent)">► Система инициализирована...</div>
+        </div>
+
+        <!-- HC-SR04 Sensor Panel -->
+        <div class="section">
+            <div class="sec-hdr">
+                <span class="sec-title">HC-SR04 · DISTANCE</span>
+                <button id="bt-connect-btn" style="background:rgba(0,170,255,.1);border:1px solid var(--blue);color:var(--blue);font-family:var(--mono);font-size:9px;padding:2px 10px;border-radius:3px;cursor:pointer;letter-spacing:1px">📡 CONNECT BT</button>
+            </div>
+            <div style="padding:10px 12px;text-align:center">
+                <div id="sensor-dist" style="font-family:var(--mono);font-size:52px;font-weight:700;color:var(--dim);line-height:1">---</div>
+                <div style="font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:2px">cm</div>
+                <div id="sensor-status" style="margin:6px auto 0;font-size:11px;font-weight:700;letter-spacing:2px;padding:4px 12px;border-radius:3px;border:1px solid;display:table;color:var(--dim);background:rgba(74,96,112,.05);border-color:rgba(74,96,112,.2)">NO DATA</div>
+            </div>
+            <div style="padding:0 12px 6px">
+                <div style="height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden">
+                    <div id="sensor-gauge" style="height:100%;border-radius:3px;width:0%;transition:width .4s,background .3s;background:var(--accent)"></div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;color:var(--dim);margin-top:3px">
+                    <span>0</span><span style="color:var(--red)">10</span><span style="color:var(--amber)">30</span><span>100+</span>
+                </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:0 12px 8px">
+                <div class="tele-card"><div class="tele-val" id="sensor-mode">--</div><div class="tele-lbl">MODE</div></div>
+                <div class="tele-card"><div class="tele-val" id="sensor-count">0</div><div class="tele-lbl">READINGS</div></div>
+            </div>
         </div>
 
         <div class="phone-hint">
-            📱 <span>Serial BT Terminal</span> → HC-05<br>
-            F=forward · B=back · L=left · R=right · S=stop<br>
-            A=auto · M=manual
+            📱 <span>Serial BT Terminal</span> → HC-05 A3 (control)<br>
+            F · B · L · R · S · A=auto · M=manual<br>
+            📡 HC-05 5A → web (HC-SR04 data)
         </div>
 
     </div>

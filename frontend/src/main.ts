@@ -8,6 +8,7 @@ import {
     updateCountdown, setOnline, setCamOnline,
     renderAlertSettings,
 }                                                      from './ui'
+import { BluetoothReceiver, type SensorData }          from './bluetooth'
 import type { DataPoint }                              from './types'
 
 const cfg      = loadConfig()
@@ -18,6 +19,62 @@ let aiTimer:   ReturnType<typeof setInterval>
 let cdTimer:   ReturnType<typeof setInterval>
 
 let aiChart: RealtimeChart
+
+// ── Sensor state ───────────────────────────────
+let sensorCount = 0
+
+function updateSensorUI(data: SensorData): void {
+    const dist   = data.distance
+    const isOut  = dist >= 999
+    const isDanger = !isOut && dist <= 10
+    const isWarn   = !isOut && dist <= 30
+
+    const color = isDanger ? 'var(--red)' : isWarn ? 'var(--amber)' : 'var(--accent)'
+    const status = isOut ? 'NO DATA' : isDanger ? '⚠ STOP!' : isWarn ? '! SLOW' : '✓ CLEAR'
+
+    const el = (id: string) => document.getElementById(id)
+
+    const distEl = el('sensor-dist')
+    if (distEl) { distEl.textContent = isOut ? '---' : dist.toFixed(1); distEl.style.color = color }
+
+    const stEl = el('sensor-status')
+    if (stEl) {
+        stEl.textContent  = status
+        stEl.style.color  = color
+        stEl.style.borderColor = color
+    }
+
+    const gauge = el('sensor-gauge')
+    if (gauge) {
+        const pct = isOut ? 0 : Math.min(100, (dist / 100) * 100)
+        gauge.style.width      = pct + '%'
+        gauge.style.background = color
+    }
+
+    const modeEl = el('sensor-mode')
+    if (modeEl) modeEl.textContent = data.mode === 'A' ? 'AUTO' : 'MANUAL'
+
+    sensorCount++
+    const countEl = el('sensor-count')
+    if (countEl) countEl.textContent = String(sensorCount)
+}
+
+// ── BT Receiver ────────────────────────────────
+const btReceiver = new BluetoothReceiver(
+    (data: SensorData) => {
+        updateSensorUI(data)
+        addLog('log-body', `BT: D=${data.distance.toFixed(1)}cm M=${data.mode}`)
+    },
+    (ok, name) => {
+        const btn = document.getElementById('bt-connect-btn')
+        if (btn) {
+            btn.textContent = ok ? '🔌 DISCONNECT' : '📡 CONNECT BT'
+            ;(btn as HTMLElement).style.borderColor = ok ? 'var(--red)' : 'var(--blue)'
+            ;(btn as HTMLElement).style.color       = ok ? 'var(--red)' : 'var(--blue)'
+        }
+        addLog('log-body', ok ? `📡 BT connected: ${name ?? 'HC-05'}` : '📡 BT disconnected')
+    }
+)
 
 function refreshCam(): void {
     const img = new Image()
@@ -47,10 +104,10 @@ async function pollAI(): Promise<void> {
             showAlertBanner(lbl, val, thr)
             addLog('log-body', `⚠ ${lbl.toUpperCase()} ${Math.round(val)}% ≥ ${thr}%`)
         })
-        addLog('log-body', `AI: ${label.toUpperCase()} ${Math.round(result[label] * 100)}% | ${ping}ms`)
+        addLog('log-body', `ИИ: ${label.toUpperCase()} ${Math.round(result[label] * 100)}% | ${ping}мс`)
     } catch {
         setOnline(false)
-        addLog('log-body', `Connection error: ${cfg.ip}`)
+        addLog('log-body', `Ошибка подключения: ${cfg.ip}`)
     }
 }
 
@@ -69,7 +126,7 @@ function reconnect(): void {
     const input = document.getElementById('ip-input') as HTMLInputElement
     cfg.ip = input.value.trim(); saveConfig(cfg)
     if (aiChart) aiChart.clear()
-    addLog('log-body', `Connecting to ${cfg.ip}...`)
+    addLog('log-body', `Подключение к ${cfg.ip}...`)
     startTimers()
 }
 
@@ -81,20 +138,33 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('connect-btn')?.addEventListener('click', reconnect)
 
+    document.getElementById('bt-connect-btn')?.addEventListener('click', async () => {
+        if (btReceiver.isConnected) {
+            btReceiver.disconnect()
+        } else {
+            try {
+                addLog('log-body', 'Connecting BT...')
+                await btReceiver.connect()
+            } catch (e) {
+                addLog('log-body', 'BT error: ' + (e as Error).message)
+            }
+        }
+    })
+
     document.getElementById('capture-btn')?.addEventListener('click', async () => {
         const btn  = document.getElementById('capture-btn')!
         const orig = btn.textContent
         btn.textContent = '⏳'; btn.setAttribute('disabled', 'true')
         try {
             const f = await captureAndDownload(cfg.ip)
-            addLog('log-body', `📷 Snapshot: ${f}`)
+            addLog('log-body', `📷 Снимок сохранён: ${f}`)
             btn.textContent = '✓'
         } catch { btn.textContent = orig }
         setTimeout(() => { btn.textContent = orig; btn.removeAttribute('disabled') }, 2000)
     })
 
     renderAlertSettings(cfg, () => saveConfig(cfg))
-    addLog('log-body', 'System ready')
+    addLog('log-body', 'Система инициализирована...')
     addLog('log-body', `IP: ${cfg.ip}`)
     startTimers()
 })
