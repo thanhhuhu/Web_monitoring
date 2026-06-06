@@ -5,6 +5,7 @@
 import type { AppConfig } from './types.ts'
 
 const STORAGE_KEY = 'esp32_monitor_config'
+export const BACKEND = 'http://localhost:3001'
 
 export const defaultConfig: AppConfig = {
     ip:         '192.168.0.137',

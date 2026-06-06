@@ -12,6 +12,8 @@ import { BluetoothReceiver, type SensorData }          from './bluetooth'
 import type { DataPoint }                              from './types'
 
 const cfg      = loadConfig()
+const BACKEND  = 'http://localhost:3001'   // ← địa chỉ backend
+
 let lastAiTime = 0
 let aiInterval = cfg.aiMs
 let camTimer:  ReturnType<typeof setInterval>
@@ -23,13 +25,23 @@ let aiChart: RealtimeChart
 // ── Sensor state ───────────────────────────────
 let sensorCount = 0
 
+// ── Backend helpers ────────────────────────────
+function postBackend(path: string, body: object): void {
+    fetch(`${BACKEND}${path}`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+    }).catch(() => {})   // silent — не блокируем UI при ошибке
+}
+
+// ── Sensor UI ──────────────────────────────────
 function updateSensorUI(data: SensorData): void {
-    const dist   = data.distance
-    const isOut  = dist >= 999
+    const dist     = data.distance
+    const isOut    = dist >= 999
     const isDanger = !isOut && dist <= 10
     const isWarn   = !isOut && dist <= 30
 
-    const color = isDanger ? 'var(--red)' : isWarn ? 'var(--amber)' : 'var(--accent)'
+    const color  = isDanger ? 'var(--red)' : isWarn ? 'var(--amber)' : 'var(--accent)'
     const status = isOut ? 'NO DATA' : isDanger ? '⚠ STOP!' : isWarn ? '! SLOW' : '✓ CLEAR'
 
     const el = (id: string) => document.getElementById(id)
@@ -39,8 +51,8 @@ function updateSensorUI(data: SensorData): void {
 
     const stEl = el('sensor-status')
     if (stEl) {
-        stEl.textContent  = status
-        stEl.style.color  = color
+        stEl.textContent       = status
+        stEl.style.color       = color
         stEl.style.borderColor = color
     }
 
@@ -64,6 +76,14 @@ const btReceiver = new BluetoothReceiver(
     (data: SensorData) => {
         updateSensorUI(data)
         addLog('log-body', `BT: D=${data.distance.toFixed(1)}cm M=${data.mode}`)
+
+        // ✅ Lưu sensor vào MongoDB (chỉ khi có tín hiệu thực)
+        if (data.distance < 999) {
+            postBackend('/api/sensor', {
+                distance_cm: data.distance,
+                mode:        data.mode,
+            })
+        }
     },
     (ok, name) => {
         const btn = document.getElementById('bt-connect-btn')
@@ -76,6 +96,7 @@ const btReceiver = new BluetoothReceiver(
     }
 )
 
+// ── Camera ─────────────────────────────────────
 function refreshCam(): void {
     const img = new Image()
     img.onload = () => {
@@ -88,29 +109,55 @@ function refreshCam(): void {
     if (t) t.textContent = new Date().toLocaleTimeString('ru', { hour12: false })
 }
 
+// ── AI polling ─────────────────────────────────
 async function pollAI(): Promise<void> {
     const t0 = Date.now()
     try {
         const result = await fetchAI(cfg.ip)
         const ping   = Date.now() - t0
         setOnline(true); lastAiTime = Date.now(); aiInterval = result.ms + 800
+
         updateBars(result)
         const label = updateStatus(result)
         updateTelemetry(ping, result.ms)
+
         if (aiChart) {
-            aiChart.push({ time: Date.now(), clear: result.clear, humans: result.humans, obstacle: result.obstacle } as DataPoint)
+            aiChart.push({
+                time: Date.now(),
+                clear: result.clear, humans: result.humans, obstacle: result.obstacle,
+            } as DataPoint)
         }
+
+        // ✅ Lưu inference vào MongoDB — sau khi có result và label
+        postBackend('/api/inference', {
+            clear:        result.clear,
+            humans:       result.humans,
+            obstacle:     result.obstacle,
+            label:        label,
+            confidence:   result[label as keyof typeof result] as number,
+            inference_ms: result.ms,
+        })
+
         checkAlerts(result, cfg.alerts, (lbl, val, thr) => {
             showAlertBanner(lbl, val, thr)
             addLog('log-body', `⚠ ${lbl.toUpperCase()} ${Math.round(val)}% ≥ ${thr}%`)
+
+            // ✅ Lưu alert vào MongoDB
+            postBackend('/api/alerts', {
+                label:         lbl,
+                value_pct:     Math.round(val),
+                threshold_pct: thr,
+            })
         })
-        addLog('log-body', `ИИ: ${label.toUpperCase()} ${Math.round(result[label] * 100)}% | ${ping}мс`)
+
+        addLog('log-body', `ИИ: ${label.toUpperCase()} ${Math.round(result[label as keyof typeof result] as number * 100)}% | ${ping}мс`)
     } catch {
         setOnline(false)
         addLog('log-body', `Ошибка подключения: ${cfg.ip}`)
     }
 }
 
+// ── Timers ─────────────────────────────────────
 function startTimers(): void {
     clearInterval(camTimer); clearInterval(aiTimer); clearInterval(cdTimer)
     refreshCam(); void pollAI()
@@ -130,6 +177,7 @@ function reconnect(): void {
     startTimers()
 }
 
+// ── Init ───────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     aiChart = new RealtimeChart('realtime-chart')
 
