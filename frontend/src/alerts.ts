@@ -1,7 +1,5 @@
-
 import type { AIResult, AlertConfig, LabelKey } from './types.ts'
 
-// Cooldown để không spam alert liên tục
 const ALERT_COOLDOWN_MS = 10_000
 const lastAlertTime: Record<LabelKey, number> = {
     clear: 0, humans: 0, obstacle: 0,
